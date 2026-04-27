@@ -31,8 +31,8 @@ fastmcp dev apps mcp_server.py --mcp-port 8023 --dev-port 8081
 ## Documentation & Demo
 
 ### Video Demonstration
-You can download and view the full end-to-end demonstration of the platform here:
-[**Download Ownership_RiskIntell.mov**](Ownership_RiskIntell.mov)
+You can view or download the full end-to-end demonstration of the platform here:
+[**Download Ownership_RiskIntell.mov (via GitHub)**](https://github.com/singhRavn/Corporate_RiskIntell/blob/main/Ownership_RiskIntell.mov)
 
 This video walks through:
 - **Agentic Pipeline**: Fetch ➔ AI Analysis ➔ Local Persistence.
