@@ -1,0 +1,31 @@
+/Users/ravneetsingh/Desktop/CorporateOwnership_RiskIntelligneceSystem/mcp_server.py:4: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  import google.generativeai as genai
+
+
+╭──────────────────────────────────────────────────────────────────────────────╮
+│                                                                              │
+│                                                                              │
+│                         ▄▀▀ ▄▀█ █▀▀ ▀█▀ █▀▄▀█ █▀▀ █▀█                        │
+│                         █▀  █▀█ ▄▄█  █  █ ▀ █ █▄▄ █▀▀                        │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                FastMCP 3.2.4                                 │
+│                            https://gofastmcp.com                             │
+│                                                                              │
+│             🖥  Server:      CorporateIntelligencePlatform, 3.2.4             │
+│             🚀 Deploy free: https://horizon.prefect.io                       │
+│                                                                              │
+╰──────────────────────────────────────────────────────────────────────────────╯
+
+
+[04/27/26 08:18:29] INFO     Starting MCP server                transport.py:209
+                             'CorporateIntelligencePlatform'                    
+                             with transport 'stdio'                             

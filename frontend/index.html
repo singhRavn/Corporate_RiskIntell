@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Corporate Intelligence Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #030303; color: #f3f4f6; }
+        .mono { font-family: 'JetBrains Mono', monospace; }
+        .glass { background: rgba(10, 15, 30, 0.6); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.05); }
+        .glow-blue { box-shadow: 0 4px 30px rgba(59, 130, 246, 0.2); }
+        .accent-gradient { background: linear-gradient(135deg, #3b82f6 0%, #10b981 100%); }
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .bg-grid {
+            background-size: 50px 50px;
+            background-image: linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+                              linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+        }
+    </style>
+</head>
+<body class="overflow-hidden h-screen text-slate-200">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // --- CUSTOM D3 FORCE GRAPH ---
+        const ForceGraph = ({ nodes, links }) => {
+            const containerRef = useRef(null);
+
+            useEffect(() => {
+                if (!containerRef.current || !nodes || !links) return;
+                
+                containerRef.current.innerHTML = ''; 
+                
+                const width = containerRef.current.clientWidth;
+                const height = 400;
+                
+                const svg = d3.select(containerRef.current)
+                    .append("svg")
+                    .attr("width", "100%")
+                    .attr("height", height)
+                    .attr("viewBox", [0, 0, width, height]);
+                    
+                const simulation = d3.forceSimulation(nodes)
+                    .force("link", d3.forceLink(links).id(d => d.id).distance(120))
+                    .force("charge", d3.forceManyBody().strength(-400))
+                    .force("center", d3.forceCenter(width / 2, height / 2))
+                    .force("collision", d3.forceCollide().radius(50));
+
+                const link = svg.append("g")
+                    .selectAll("line")
+                    .data(links)
+                    .join("line")
+                    .attr("stroke", "rgba(59, 130, 246, 0.3)")
+                    .attr("stroke-width", 2);
+
+                const node = svg.append("g")
+                    .selectAll("g")
+                    .data(nodes)
+                    .join("g")
+                    .call(d3.drag()
+                        .on("start", dragstarted)
+                        .on("drag", dragged)
+                        .on("end", dragended));
+
+                node.append("circle")
+                    .attr("r", d => d.type === 'parent' ? 30 : 20)
+                    .attr("fill", d => d.type === 'parent' ? "rgba(10, 15, 30, 0.9)" : "rgba(31, 41, 55, 0.9)")
+                    .attr("stroke", d => d.type === 'parent' ? "#3b82f6" : "#10b981")
+                    .attr("stroke-width", 3)
+                    .style("filter", d => `drop-shadow(0 0 12px ${d.type === 'parent' ? 'rgba(59, 130, 246, 0.6)' : 'rgba(16, 185, 129, 0.4)'})`);
+
+                node.append("text")
+                    .text(d => d.label.split(' (')[0]) // Simplify name
+                    .attr("x", 0)
+                    .attr("y", d => d.type === 'parent' ? -40 : -30)
+                    .attr("text-anchor", "middle")
+                    .attr("fill", "#f3f4f6")
+                    .attr("font-size", "14px")
+                    .attr("font-weight", d => d.type === 'parent' ? "bold" : "normal")
+                    .style("pointer-events", "none");
+
+                node.append("text")
+                    .text(d => d.label.includes('(') ? d.label.split('(')[1].replace(')','') : '') 
+                    .attr("x", 0)
+                    .attr("y", d => d.type === 'parent' ? 45 : 35)
+                    .attr("text-anchor", "middle")
+                    .attr("fill", d => d.type === 'parent' ? "#3b82f6" : "#10b981")
+                    .attr("font-size", "11px")
+                    .attr("font-weight", "bold")
+                    .style("pointer-events", "none");
+
+                simulation.on("tick", () => {
+                    link
+                        .attr("x1", d => d.source.x)
+                        .attr("y1", d => d.source.y)
+                        .attr("x2", d => d.target.x)
+                        .attr("y2", d => d.target.y);
+                    node
+                        .attr("transform", d => `translate(${d.x},${d.y})`);
+                });
+
+                function dragstarted(event) {
+                    if (!event.active) simulation.alphaTarget(0.3).restart();
+                    event.subject.fx = event.subject.x;
+                    event.subject.fy = event.subject.y;
+                }
+                function dragged(event) {
+                    event.subject.fx = event.x;
+                    event.subject.fy = event.y;
+                }
+                function dragended(event) {
+                    if (!event.active) simulation.alphaTarget(0);
+                    event.subject.fx = null;
+                    event.subject.fy = null;
+                }
+                return () => simulation.stop();
+            }, [nodes, links]);
+
+            return <div ref={containerRef} className="w-full relative rounded-lg overflow-hidden glass" style={{ minHeight: '400px' }}></div>;
+        };
+
+        // --- PREFAB UI COMPONENTS ---
+
+        const PrefabRenderer = ({ node }) => {
+            if (!node || typeof node !== 'object') return null;
+
+            const renderChildren = (children) => {
+                if (!children) return null;
+                if (!Array.isArray(children)) return <PrefabRenderer node={children} />;
+                return children.map((child, idx) => <PrefabRenderer key={idx} node={child} />);
+            };
+
+            const Components = {
+                Div: ({ cssClass, children }) => (
+                    <div className={cssClass || ''}>{renderChildren(children)}</div>
+                ),
+                Column: ({ gap, cssClass, children }) => {
+                    // Hijack column rendering for Custom Force Graph
+                    if (cssClass && cssClass.includes('force-graph-container') && children?.length > 0) {
+                        try {
+                            const data = JSON.parse(children[0].content);
+                            return <ForceGraph nodes={data.nodes} links={data.links} />;
+                        } catch (e) {
+                            console.error("ForceGraph parse error", e);
+                        }
+                    }
+                    return (
+                        <div className={`flex flex-col ${cssClass || ''}`} style={{ gap: (gap || 0) * 0.25 + 'rem' }}>
+                            {renderChildren(children)}
+                        </div>
+                    );
+                },
+                Row: ({ gap, align, justify, cssClass, children }) => (
+                    <div className={`flex flex-row items-${align || 'start'} justify-${justify || 'start'} ${cssClass || ''}`} style={{ gap: (gap || 0) * 0.25 + 'rem' }}>
+                        {renderChildren(children)}
+                    </div>
+                ),
+                Grid: ({ columns, gap, cssClass, children }) => {
+                    const cols = parseInt(cssClass?.match(/grid-cols-(\d+)/)?.[1]) || 1;
+                    return (
+                        <div className={`grid grid-cols-${cols} ${cssClass || ''}`} style={{ gap: (gap || 0) * 0.25 + 'rem' }}>
+                            {renderChildren(children)}
+                        </div>
+                    );
+                },
+                Card: ({ cssClass, children }) => (
+                    <div className={`glass rounded-xl p-6 glow-blue transition-all duration-300 hover:shadow-blue-500/30 ${cssClass || ''}`}>
+                        {renderChildren(children)}
+                    </div>
+                ),
+                CardContent: ({ children }) => (
+                    <div className="space-y-4">
+                        {renderChildren(children)}
+                    </div>
+                ),
+                Heading: ({ content, level }) => {
+                    const sizes = { 1: 'text-4xl', 2: 'text-2xl', 3: 'text-xl' };
+                    return <h2 className={`${sizes[level || 2]} font-bold tracking-tight text-white mb-2 drop-shadow-md`}>{content}</h2>;
+                },
+                Text: ({ content, weight, size, color, cssClass }) => {
+                    if (cssClass && cssClass.includes('hidden')) return null; // Hide data payload text
+                    return (
+                        <p className={`${cssClass || ''} ${size === 'sm' ? 'text-sm' : 'text-base'} ${weight === 'bold' ? 'font-bold text-white' : weight === 'semibold' ? 'font-semibold text-white' : 'font-normal'} ${color === 'muted' ? 'text-slate-400' : 'text-slate-200'}`}>
+                            {content}
+                        </p>
+                    );
+                },
+                Badge: ({ label, variant }) => {
+                    const variants = {
+                        success: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30 font-bold shadow-[0_0_10px_rgba(16,185,129,0.2)]',
+                        destructive: 'bg-rose-500/10 text-rose-400 border-rose-500/30 font-bold shadow-[0_0_10px_rgba(244,63,94,0.2)]',
+                        warning: 'bg-amber-500/10 text-amber-400 border-amber-500/30 font-bold shadow-[0_0_10px_rgba(245,158,11,0.2)]',
+                        default: 'bg-blue-500/10 text-blue-400 border-blue-500/30 font-bold shadow-[0_0_10px_rgba(59,130,246,0.2)]'
+                    };
+                    return (
+                        <span className={`px-2.5 py-1 rounded-md text-[10px] uppercase tracking-widest border ${variants[variant] || variants.default}`}>
+                            {label}
+                        </span>
+                    );
+                },
+                Separator: () => <div className="h-px w-full bg-gradient-to-r from-transparent via-white/20 to-transparent my-6" />,
+                BarChart: ({ data, series, xAxis }) => (
+                    <div className="h-64 w-full flex items-end gap-2 pt-8">
+                        {data.map((item, i) => (
+                            <div key={i} className="flex-1 flex flex-col items-center group relative">
+                                <div 
+                                    className="w-full accent-gradient rounded-t-sm transition-all duration-500 group-hover:brightness-125"
+                                    style={{ height: `${item[series[0].dataKey]}%` }}
+                                >
+                                    <div className="absolute -top-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap bg-gray-900 border border-white/10 px-2 py-1 rounded text-xs">
+                                        {item[series[0].dataKey]}%
+                                    </div>
+                                </div>
+                                <span className="text-[10px] text-gray-500 mt-2 rotate-45 origin-left whitespace-nowrap">{item[xAxis]}</span>
+                            </div>
+                        ))}
+                    </div>
+                )
+            };
+
+            const Tag = node.type;
+            const Component = Components[Tag];
+            
+            if (!Component) return <div className="text-rose-500 rounded border border-rose-500/20 p-2 text-xs">Missing Component: {Tag}</div>;
+            
+            return <Component {...node} children={node.children} />;
+        };
+
+        // --- DASHBOARD APP ---
+
+        const App = () => {
+            const [query, setQuery] = useState("Find ownership structure of Reliance Industries");
+            const [loading, setLoading] = useState(false);
+            const [view, setView] = useState(null);
+            const [logs, setLogs] = useState([]);
+
+            const addLog = (msg) => setLogs(prev => [...prev.slice(-4), { id: Date.now(), msg }]);
+
+            const executeQuery = async () => {
+                if (!query) return;
+                setLoading(true);
+                setView(null);
+                addLog(`Orchestrating agent: "${query}"`);
+                
+                try {
+                    const res = await fetch('/api/query', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ query })
+                    });
+                    const data = await res.json();
+                    
+                    if (data.status === 'success') {
+                        addLog("Pipeline complete: UI Rendered.");
+                        setView(data.ui_schema.view);
+                    } else {
+                        addLog(`Error: ${data.message}`);
+                    }
+                } catch (e) {
+                    addLog(`Connection failed: ${e.message}`);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            return (
+                <div className="flex h-screen w-screen bg-[#050505]">
+                    {/* Sidebar / Tools */}
+                    <div className="w-80 border-r border-white/5 flex flex-col glass z-10">
+                        <div className="p-6 border-b border-white/10">
+                            <h1 className="text-xl font-bold tracking-tighter accent-gradient bg-clip-text text-transparent italic">INTEL-AGENT v2.0</h1>
+                        </div>
+                        
+                        <div className="p-6 space-y-6 flex-1 overflow-y-auto">
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Active Search</label>
+                                <div className="relative">
+                                    <textarea 
+                                        className="w-full bg-black border border-white/10 rounded-lg p-3 text-sm focus:outline-none focus:border-blue-500/50 min-h-[100px] resize-none"
+                                        value={query}
+                                        onChange={(e) => setQuery(e.target.value)}
+                                        placeholder="Enter corporate query..."
+                                    />
+                                </div>
+                                <button 
+                                    onClick={executeQuery}
+                                    disabled={loading}
+                                    className="w-full px-4 py-2 rounded-lg font-bold text-sm bg-white text-black hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed group flex items-center justify-center gap-2"
+                                >
+                                    {loading ? (
+                                        <div className="w-4 h-4 border-2 border-black/20 border-t-black rounded-full animate-spin" />
+                                    ) : 'PROCESS QUERY'}
+                                </button>
+                            </div>
+
+                            <div className="space-y-3">
+                                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Connected MCP Servers</label>
+                                
+                                <div className="border border-white/10 rounded-lg overflow-hidden bg-black/50">
+                                    <div className="p-3 border-b border-white/5 bg-white/5 flex items-center justify-between cursor-default">
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.8)]" />
+                                            <span className="text-xs font-bold text-gray-200">CorporateIntelligencePlatform</span>
+                                        </div>
+                                        <span className="text-[9px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold uppercase tracking-wider">Online</span>
+                                    </div>
+                                    <div className="p-3 space-y-3">
+                                        <div className="flex gap-3 items-center group">
+                                            <div className="p-1.5 rounded text-blue-400 bg-blue-500/10 group-hover:bg-blue-500/20 transition-colors">
+                                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                                            </div>
+                                            <div>
+                                                <p className="text-[10px] font-mono font-bold text-gray-300">fetch_corporate_data</p>
+                                                <p className="text-[9px] text-gray-500 leading-tight">Extracts structured logic & risks.</p>
+                                            </div>
+                                        </div>
+                                        <div className="flex gap-3 items-center group">
+                                            <div className="p-1.5 rounded text-emerald-400 bg-emerald-500/10 group-hover:bg-emerald-500/20 transition-colors">
+                                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>
+                                            </div>
+                                            <div>
+                                                <p className="text-[10px] font-mono font-bold text-gray-300">file_crud</p>
+                                                <p className="text-[9px] text-gray-500 leading-tight">Atomic local memory persistence.</p>
+                                            </div>
+                                        </div>
+                                        <div className="flex gap-3 items-center group">
+                                            <div className="p-1.5 rounded text-purple-400 bg-purple-500/10 group-hover:bg-purple-500/20 transition-colors">
+                                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6z" /></svg>
+                                            </div>
+                                            <div>
+                                                <p className="text-[10px] font-mono font-bold text-gray-300">render_prefab_ui</p>
+                                                <p className="text-[9px] text-gray-500 leading-tight">Driven Component UI Gen Schema.</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="space-y-4">
+                                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Agent Logs</label>
+                                <div className="space-y-2">
+                                    {logs.map(log => (
+                                        <div key={log.id} className="mono text-[10px] text-emerald-500/80 bg-emerald-500/5 border border-emerald-500/10 p-2 rounded animate-pulse">
+                                            {">"} {log.msg}
+                                        </div>
+                                    ))}
+                                    {logs.length === 0 && <div className="text-[10px] text-gray-600 italic">No activity detected...</div>}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="p-6 bg-blue-500/5 border-t border-white/5">
+                            <div className="flex items-center gap-3 text-xs text-blue-400 font-bold uppercase tracking-widest">
+                                <div className="w-2 h-2 rounded-full bg-blue-500 animate-ping" />
+                                MCP Engine Online
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Main Stage */}
+                    <div className="flex-1 relative overflow-y-auto bg-grid h-full p-12 custom-scrollbar">
+                        {loading && (
+                            <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#030303]/80 backdrop-blur-md z-20 transition-all duration-300">
+                                <div className="relative w-32 h-32 flex items-center justify-center mb-8">
+                                    {/* Outer pulsing ring */}
+                                    <div className="absolute inset-0 border border-blue-500/30 rounded-full animate-[ping_2s_cubic-bezier(0,0,0.2,1)_infinite]" />
+                                    {/* Middle spinning dashed ring */}
+                                    <div className="absolute inset-2 border-2 border-dashed border-emerald-500/40 rounded-full animate-[spin_3s_linear_infinite]" />
+                                    {/* Inner spinning ring */}
+                                    <div className="absolute inset-6 border-2 border-t-blue-500 border-r-transparent border-b-purple-500 border-l-transparent rounded-full animate-[spin_1.5s_linear_infinite_reverse]" />
+                                    {/* Center core */}
+                                    <div className="w-8 h-8 bg-blue-500/20 rounded-full flex items-center justify-center shadow-[0_0_20px_rgba(59,130,246,0.6)] animate-pulse">
+                                        <div className="w-3 h-3 bg-white rounded-full shadow-[0_0_10px_rgba(255,255,255,1)]" />
+                                    </div>
+                                </div>
+                                
+                                <div className="flex flex-col items-center gap-4">
+                                    <h3 className="text-lg font-bold text-transparent bg-clip-text accent-gradient tracking-[0.2em] uppercase animate-pulse">Initializing Agentic Engine</h3>
+                                    <div className="flex items-center gap-2">
+                                        <div className="px-3 py-1 bg-blue-500/10 border border-blue-500/30 text-blue-400 font-mono text-[10px] rounded animate-pulse" style={{animationDuration: '1s'}}>FETCH</div>
+                                        <div className="w-4 h-px border-t border-dashed border-white/20" />
+                                        <div className="px-3 py-1 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-mono text-[10px] rounded animate-pulse" style={{animationDuration: '1s', animationDelay: '250ms'}}>ANALYZE</div>
+                                        <div className="w-4 h-px border-t border-dashed border-white/20" />
+                                        <div className="px-3 py-1 bg-amber-500/10 border border-amber-500/30 text-amber-400 font-mono text-[10px] rounded animate-pulse" style={{animationDuration: '1s', animationDelay: '500ms'}}>SAVE</div>
+                                        <div className="w-4 h-px border-t border-dashed border-white/20" />
+                                        <div className="px-3 py-1 bg-purple-500/10 border border-purple-500/30 text-purple-400 font-mono text-[10px] rounded animate-pulse" style={{animationDuration: '1s', animationDelay: '750ms'}}>RENDER</div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {!view && !loading && (
+                            <div className="h-full flex flex-col items-center justify-center text-center space-y-6">
+                                <div className="w-24 h-24 bg-white/5 border border-white/10 rounded-full flex items-center justify-center">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" className="w-10 h-10 text-gray-500" strokeWidth="1.5">
+                                        <path d="M21 21L15 15M17 10C17 13.866 13.866 17 10 17C6.13401 17 3 13.866 3 10C3 6.13401 6.13401 3 10 3C13.866 3 17 6.13401 17 10Z" strokeLinecap="round" strokeLinejoin="round"/>
+                                    </svg>
+                                </div>
+                                <div>
+                                    <h2 className="text-2xl font-bold text-white">Awaiting Intelligence Directives</h2>
+                                    <p className="text-gray-500 mt-2 max-w-sm mx-auto">Input a company query on the left to begin corporate structural analysis via the MCP Agent.</p>
+                                </div>
+                            </div>
+                        )}
+
+                        {view && (
+                            <div className="max-w-6xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-700">
+                                <PrefabRenderer node={view} />
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
